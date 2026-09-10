@@ -10,6 +10,7 @@ import {
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { agyHostContract } from "./contract.js";
 import { probeLocal, runInstall } from "./install.js";
+import { effectiveLaunchArgs } from "./launch-spec.js";
 
 import {
   normalizeModelId,
@@ -210,8 +211,15 @@ export const experimental_providerBridge = {
     try {
       const parsed = JSON.parse(line);
       if (parsed && typeof parsed === "object") {
+        const launchSpec =
+          parsed.params?.providerOptions?.acpLaunchSpec ??
+          parsed.params?.options?.providerOptions?.acpLaunchSpec;
+        if (launchSpec && Array.isArray(launchSpec.args)) {
+          launchSpec.args = effectiveLaunchArgs(launchSpec.args, process.platform);
+          line = JSON.stringify(parsed);
+        }
+
         if (parsed.method === "model/list") {
-          const launchSpec = parsed.params?.providerOptions?.acpLaunchSpec;
           if (!isInitialized || isCacheStale()) {
             // Stale or cold — await discovery so first picker is fresh
             await refreshModels(launchSpec);
@@ -245,7 +253,6 @@ export const experimental_providerBridge = {
           if (!parsed.params.options) {
             parsed.params.options = {};
           }
-          const launchSpec = parsed.params?.options?.providerOptions?.acpLaunchSpec;
           if (!isInitialized) {
             loadFromDiskCache(launchSpec?.env);
             if (!isInitialized && launchSpec) {

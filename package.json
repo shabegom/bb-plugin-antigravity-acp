@@ -3,7 +3,7 @@
   "version": "0.2.5",
   "type": "module",
   "scripts": {
-    "test": "node --import tsx --test tests/model-utils.test.ts test/wrapper-render.test.mjs test/wrapper-proxy.test.mjs test/install-handshake.test.mjs"
+    "test": "node --import tsx --test tests/model-utils.test.ts tests/launch-spec.test.ts test/wrapper-render.test.mjs test/wrapper-proxy.test.mjs test/install-handshake.test.mjs"
   },
   "engines": {
     "bb": ">=0.42",
@@ -19,10 +19,10 @@
     "host": "./host.ts"
   },
   "dependencies": {
-    "@get-bb/plugin-sdk": "^0.4.50",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@get-bb/plugin-sdk": "0.4.48",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

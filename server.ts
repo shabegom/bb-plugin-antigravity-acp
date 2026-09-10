@@ -4,6 +4,7 @@ import type {
 } from "@get-bb/plugin-sdk";
 import { agyHostContract } from "./contract.js";
 import { FALLBACK_DIST, detectTarget, probeLocal, runInstall, type InstallResult } from "./install.js";
+import { effectiveLaunchArgs } from "./launch-spec.js";
 
 const PROVIDER_ID = "acp-antigravity";
 
@@ -174,11 +175,12 @@ export default async function plugin(bb: BbPluginApi) {
       probe = await probeLocal();
     }
     const currentLaunch = buildLaunchSpec(current);
+    const effectiveArgs = effectiveLaunchArgs(currentLaunch.args, probe.platform);
     const status = {
       providerId: PROVIDER_ID,
       displayName: currentLaunch.displayName,
       command: currentLaunch.command,
-      launchArgs: currentLaunch.args,
+      launchArgs: effectiveArgs,
       target: target.hostId
         ? `${target.label}${probe.ok ? "" : " (probe failed)"}`
         : target.error ?? "this machine (server)",
