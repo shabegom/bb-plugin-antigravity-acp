@@ -104,6 +104,16 @@ The POSIX install renders a lightweight transparent proxy wrapper as `agy_acp_se
 
 This enables BB's native context window tracking and context meter plugins (such as `context-meter`) to display live token usage for Antigravity threads.
 
+## Subscription limit reporting
+
+The provider also answers Cambium's provider-usage request on each execution
+host. It runs the host-local `agy -p /usage --output-format json` command and
+maps the Gemini and Claude/GPT five-hour and weekly quota buckets into
+Cambium's standard usage windows. That makes Antigravity appear in `cam usage
+status` and the sidebar usage panel. If `agy` is missing or its usage command
+cannot read the signed-in account, the panel reports an explicit error instead
+of showing a made-up zero.
+
 ## Security notes
 
 - The ACP registry is fetched from a **pinned commit** (`REGISTRY_COMMIT`),

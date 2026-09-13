@@ -11,6 +11,7 @@ import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { agyHostContract } from "./contract.js";
 import { probeLocal, runInstall } from "./install.js";
 import { effectiveLaunchArgs } from "./launch-spec.js";
+import { getAntigravityProviderUsage } from "./provider-usage.js";
 
 import {
   normalizeModelId,
@@ -215,8 +216,19 @@ export const experimental_providerBridge = {
           parsed.params?.providerOptions?.acpLaunchSpec ??
           parsed.params?.options?.providerOptions?.acpLaunchSpec;
         if (launchSpec && Array.isArray(launchSpec.args)) {
-          launchSpec.args = effectiveLaunchArgs(launchSpec.args, process.platform);
+          launchSpec.args = effectiveLaunchArgs(launchSpec.args);
           line = JSON.stringify(parsed);
+        }
+
+        if (parsed.method === "provider/usage") {
+          process.stdout.write(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: parsed.id,
+              result: await getAntigravityProviderUsage(),
+            }) + "\n",
+          );
+          return;
         }
 
         if (parsed.method === "model/list") {

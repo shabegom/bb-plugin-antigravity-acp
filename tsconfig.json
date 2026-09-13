@@ -19,6 +19,7 @@
     "server.ts",
     "host.ts",
     "model-utils.ts",
+    "provider-usage.ts",
     "contract.ts",
     "install.ts",
     "tests/**/*.ts"

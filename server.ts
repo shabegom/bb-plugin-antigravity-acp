@@ -55,7 +55,7 @@ export default async function plugin(bb: BbPluginApi) {
       displayName: "Google Antigravity",
       // Windows installs the .exe, POSIX the .par. Both resolve on the server's platform.
       command: detectTarget().binaryName,
-      args: launchArgs,
+      args: effectiveLaunchArgs(launchArgs),
       env,
     };
   }
@@ -87,7 +87,7 @@ export default async function plugin(bb: BbPluginApi) {
       experimental_visibility: "installed",
       // One probe per machine serves every workspace on it.
       models: { scope: "host" },
-      maintenance: { health: true, usage: false, installation: false },
+      maintenance: { health: true, usage: true, installation: false },
       capabilities: {
         supportsServiceTier: false,
         supportsNativeUserQuestion: false,
@@ -175,12 +175,11 @@ export default async function plugin(bb: BbPluginApi) {
       probe = await probeLocal();
     }
     const currentLaunch = buildLaunchSpec(current);
-    const effectiveArgs = effectiveLaunchArgs(currentLaunch.args, probe.platform);
     const status = {
       providerId: PROVIDER_ID,
       displayName: currentLaunch.displayName,
       command: currentLaunch.command,
-      launchArgs: effectiveArgs,
+      launchArgs: currentLaunch.args,
       target: target.hostId
         ? `${target.label}${probe.ok ? "" : " (probe failed)"}`
         : target.error ?? "this machine (server)",
