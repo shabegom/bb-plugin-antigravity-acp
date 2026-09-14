@@ -4,7 +4,7 @@ import type {
 } from "@get-bb/plugin-sdk";
 import { agyHostContract } from "./contract.js";
 import { FALLBACK_DIST, detectTarget, probeLocal, runInstall, type InstallResult } from "./install.js";
-import { effectiveLaunchArgs } from "./launch-spec.js";
+import { effectiveLaunchArgs, effectiveLaunchEnv } from "./launch-spec.js";
 
 const PROVIDER_ID = "acp-antigravity";
 
@@ -44,13 +44,10 @@ export default async function plugin(bb: BbPluginApi) {
   const launchArgs = FALLBACK_DIST[detectTarget().distKey]?.args ?? [];
 
   function buildLaunchSpec(currentSettings: typeof saved) {
-    const env: Record<string, string> = {};
-    if (currentSettings.defaultModel?.trim()) {
-      env.BB_ANTIGRAVITY_DEFAULT_MODEL = currentSettings.defaultModel.trim();
-    }
-    if (currentSettings.defaultReasoningEffort?.trim()) {
-      env.BB_ANTIGRAVITY_DEFAULT_REASONING = currentSettings.defaultReasoningEffort.trim();
-    }
+    const env = effectiveLaunchEnv({
+      defaultModel: currentSettings.defaultModel,
+      defaultReasoningEffort: currentSettings.defaultReasoningEffort,
+    });
     return {
       displayName: "Google Antigravity",
       // Windows installs the .exe, POSIX the .par. Both resolve on the server's platform.

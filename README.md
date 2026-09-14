@@ -129,5 +129,7 @@ of showing a made-up zero.
 ## Auth
 
 Auth is handled in-band by the ACP server (Google account OAuth, Gemini API
-key, Agent Platform). First run surfaces a login flow in the thread. State
-lives under `~/.gemini/antigravity-acp/settings.json`.
+key, Agent Platform). The provider selects Antigravity's `oauth-personal` ACP
+method by default, so Cambium authenticates before opening a session. First run
+surfaces a login flow in the thread. State lives under
+`~/.gemini/antigravity-acp/settings.json`.
