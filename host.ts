@@ -10,7 +10,7 @@ import {
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { agyHostContract } from "./contract.js";
 import { probeLocal, runInstall } from "./install.js";
-import { effectiveLaunchArgs } from "./launch-spec.js";
+import { effectiveLaunchArgs, withAntigravityAuth } from "./launch-spec.js";
 import { getAntigravityProviderUsage } from "./provider-usage.js";
 
 import {
@@ -217,6 +217,9 @@ export const experimental_providerBridge = {
           parsed.params?.options?.providerOptions?.acpLaunchSpec;
         if (launchSpec && Array.isArray(launchSpec.args)) {
           launchSpec.args = effectiveLaunchArgs(launchSpec.args);
+          // Enforce auth selection at the execution-host boundary too. This
+          // also covers a server registration cached across a plugin reload.
+          launchSpec.env = withAntigravityAuth(launchSpec.env ?? {});
           line = JSON.stringify(parsed);
         }
 
