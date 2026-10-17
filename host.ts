@@ -1,15 +1,24 @@
 // Host entry: wraps the shared ACP provider bridge, discovers models from the running Antigravity server, and serves the install/status host RPC.
 import fs from "node:fs";
+import { stat } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import readline from "node:readline";
+import { promisify } from "node:util";
 import {
   experimental_acpProviderBridge,
 } from "@get-bb/plugin-sdk/provider-bridge/acp";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { agyHostContract } from "./contract.js";
-import { probeLocal, runInstall } from "./install.js";
+import {
+  detectTarget,
+  findAgyAcpBridge,
+  findAgyBin,
+  isDarwinIntel,
+  probeLocal,
+  runInstall,
+} from "./install.js";
 import { effectiveLaunchArgs, withAntigravityAuth } from "./launch-spec.js";
 import { getAntigravityProviderUsage } from "./provider-usage.js";
 
@@ -23,6 +32,8 @@ import {
   type ModelCatalog,
 } from "./model-utils.js";
 
+const execFileAsync = promisify(execFile);
+
 
 const CACHE_FILE = path.join(
   os.homedir(),
@@ -33,6 +44,41 @@ const CACHE_FILE = path.join(
 );
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — picker never stale, background refresh handles rotation
+
+// Intel Macs have no official Antigravity ACP server. The `agy-acp` bridge
+// wraps the local `agy` CLI and speaks ACP, so use it when it is present.
+const DARWIN_INTEL_BRIDGE_COMMAND = "agy-acp";
+
+async function resolveDarwinIntelBridge(): Promise<string | null> {
+  if (!isDarwinIntel()) return null;
+  return findAgyAcpBridge();
+}
+
+export function parseAgyModelsOutput(stdout: string): RawModel[] {
+  const models: RawModel[] = [];
+  for (const line of stdout.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("Fetching")) continue;
+    const tab = trimmed.indexOf("\t");
+    if (tab < 0) continue;
+    const id = trimmed.slice(0, tab).trim();
+    const name = trimmed.slice(tab + 1).trim();
+    if (id && name) models.push({ id, name });
+  }
+  return models;
+}
+
+async function queryAgyModels(): Promise<RawModel[]> {
+  const agyBin = await findAgyBin();
+  if (!agyBin) return [];
+  try {
+    const { stdout } = await execFileAsync(agyBin, ["models"], { timeout: 15_000 });
+    return parseAgyModelsOutput(stdout);
+  } catch (err) {
+    if (process.env.DEBUG) console.error("[acp-antigravity] Failed to query agy models:", err);
+    return [];
+  }
+}
 
 // Per-provider default configurability
 
@@ -151,10 +197,15 @@ async function queryAcpServer(
         });
         const session: any = await send("session/new", { cwd: process.cwd(), mcpServers: [] });
         const modelOption = session?.configOptions?.find((c: any) => c.id === "model");
-        const rawList = (modelOption?.options ?? []).map((o: any) => ({
+        let rawList = (modelOption?.options ?? []).map((o: any) => ({
           id: o.value,
           name: o.name ?? o.value,
         }));
+        // The agy-acp bridge does not advertise models via configOptions; ask
+        // the `agy` CLI directly when the server came up empty.
+        if (rawList.length === 0) {
+          rawList = await queryAgyModels();
+        }
         clearTimeout(timeout);
         proc.kill();
         resolve(rawList);
@@ -220,6 +271,17 @@ export const experimental_providerBridge = {
           // Enforce auth selection at the execution-host boundary too. This
           // also covers a server registration cached across a plugin reload.
           launchSpec.env = withAntigravityAuth(launchSpec.env ?? {});
+
+          // Intel Macs have no official ACP server. Route to the local
+          // agy-acp bridge when the official binary is absent.
+          if (isDarwinIntel()) {
+            const bridge = await resolveDarwinIntelBridge();
+            if (bridge) {
+              launchSpec.command = DARWIN_INTEL_BRIDGE_COMMAND;
+              launchSpec.args = [];
+            }
+          }
+
           line = JSON.stringify(parsed);
         }
 
