@@ -37,6 +37,20 @@ export interface ModelCatalog {
 export const FALLBACK_DEFAULT_MODEL_ID = "gemini-3.8-flash";
 export const FALLBACK_DEFAULT_VARIANT_ID = "gemini-3.8-flash-medium";
 
+/**
+ * Antigravity serves third-party models (Claude, GPT-OSS) next to Gemini. Sam's policy is Google
+ * models only through Antigravity, so the catalog and model resolution only admit Gemini/Gemma ids.
+ */
+const GOOGLE_MODEL_PATTERN = /^(gemini|gemma)(?:[-_.\s]|$)/i;
+
+export function isGoogleModelId(id: string): boolean {
+  return GOOGLE_MODEL_PATTERN.test(id.trim());
+}
+
+export function isGoogleModel(raw: RawModel): boolean {
+  return isGoogleModelId(raw.id) || isGoogleModelId(raw.name || "");
+}
+
 export function normalizeModelId(id: string): string {
   return id
     .trim()
@@ -85,7 +99,7 @@ export function parseRawModels(
 ): ModelCatalog {
   const families = new Map<string, ModelFamily>();
 
-  for (const raw of rawList) {
+  for (const raw of rawList.filter(isGoogleModel)) {
     const rawId = raw.id;
     const rawName = (raw.name || rawId).trim();
 
@@ -205,9 +219,11 @@ export function resolveRawModelId(
 ): string {
   const families = catalog.families;
   const defFamId = catalog.defaultFamilyId;
-  const rawList = catalog.rawModels;
+  const rawList = catalog.rawModels.filter(isGoogleModel);
 
-  const cleanModel = model && model.trim() ? normalizeModelId(model) : "";
+  const requested = model && model.trim() ? normalizeModelId(model) : "";
+  // A non-Google model request (e.g. a chain rung naming Claude) falls back to the default Gemini model.
+  const cleanModel = requested && isGoogleModelId(requested) ? requested : "";
   const targetModel = cleanModel || defFamId || FALLBACK_DEFAULT_MODEL_ID;
 
   const rawHit = rawList.find((r) => r.id.toLowerCase() === targetModel.toLowerCase());

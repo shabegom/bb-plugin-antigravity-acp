@@ -121,12 +121,12 @@ describe("parseRawModels — dynamic discovery", () => {
 
   it("handles id-only effort (no parens) generically", () => {
     const raw: RawModel[] = [
-      { id: "future-model-turbo", name: "Future Model" },
-      { id: "future-model-standard", name: "Future Model" },
+      { id: "gemini-future-model-turbo", name: "Gemini Future Model" },
+      { id: "gemini-future-model-standard", name: "Gemini Future Model" },
     ];
     const { families } = parseRawModels(raw);
-    const fam = families.get("future-model")!;
-    assert.ok(fam, "family should be future-model");
+    const fam = families.get("gemini-future-model")!;
+    assert.ok(fam, "family should be gemini-future-model");
     assert.ok(fam.variants.has("turbo"));
     assert.ok(fam.variants.has("standard"));
   });
@@ -226,5 +226,36 @@ describe("cache staleness — TTL behavior", () => {
     const mockCache = { rawModels: CURRENT_RAW, timestamp: Date.now() };
     assert.ok(typeof mockCache.timestamp === "number");
     assert.ok(Array.isArray(mockCache.rawModels));
+  });
+});
+
+describe("Google models only", () => {
+  const MIXED_RAW: RawModel[] = [
+    { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)" },
+    { id: "gemini-4-hydrogen-medium", name: "Gemini 4 Hydrogen (Medium)" },
+    { id: "gemini-4-hydrogen-xhigh", name: "Gemini 4 Hydrogen (Xhigh)" },
+    { id: "claude-opus-5.5-medium", name: "Claude Opus 5.5 (Medium)" },
+    { id: "claude-sonnet-5.5-medium", name: "Claude Sonnet 5.5 (Medium)" },
+    { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)" },
+  ];
+
+  it("lists only Gemini families", () => {
+    const catalog = parseRawModels(MIXED_RAW);
+    const ids = catalog.models.map((m) => m.id).sort();
+    assert.deepEqual(ids, ["gemini-3.8-flash", "gemini-4-hydrogen"]);
+    assert.equal(catalog.defaultFamilyId, "gemini-3.8-flash");
+  });
+
+  it("resolves a non-Google request to the default Gemini variant", () => {
+    const catalog = parseRawModels(MIXED_RAW);
+    assert.equal(resolveRawModelId("claude-opus-5.5", undefined, catalog), "gemini-3.8-flash-medium");
+    assert.equal(resolveRawModelId("claude-opus-5.5-medium", "high", catalog), "gemini-3.8-flash-medium");
+    assert.equal(resolveRawModelId("gpt-oss-120b", undefined, catalog), "gemini-3.8-flash-medium");
+  });
+
+  it("still resolves Gemini requests", () => {
+    const catalog = parseRawModels(MIXED_RAW);
+    assert.equal(resolveRawModelId("gemini-4-hydrogen", "xhigh", catalog), "gemini-4-hydrogen-xhigh");
+    assert.equal(resolveRawModelId("gemini-4-hydrogen-medium", undefined, catalog), "gemini-4-hydrogen-medium");
   });
 });

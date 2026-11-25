@@ -323,6 +323,21 @@ export const experimental_providerBridge = {
         }
 
         if (
+          (parsed.method === "turn/start" || parsed.method === "turn/steer") &&
+          typeof parsed.params?.options?.model === "string" &&
+          parsed.params.options.model.trim()
+        ) {
+          // A per-turn model override goes through the same Google-only resolution as thread start.
+          if (!isInitialized) loadFromDiskCache(launchSpec?.env);
+          parsed.params.options.model = resolveRawModelId(
+            parsed.params.options.model,
+            parsed.params.options.reasoningLevel,
+            activeCatalog,
+          );
+          line = JSON.stringify(parsed);
+        }
+
+        if (
           parsed.method === "thread/start" ||
           parsed.method === "thread/resume" ||
           parsed.method === "thread/fork"
