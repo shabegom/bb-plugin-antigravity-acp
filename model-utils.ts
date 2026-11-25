@@ -43,6 +43,9 @@ export const FALLBACK_DEFAULT_VARIANT_ID = "gemini-3.8-flash-medium";
  */
 const GOOGLE_MODEL_PATTERN = /^(gemini|gemma)(?:[-_.\s]|$)/i;
 
+/** Reasoning efforts bb accepts in a model list (reasoningLevelValues in @bb/domain). */
+const BB_REASONING_EFFORTS = new Set(["none", "low", "medium", "high", "xhigh", "ultracode", "max", "ultra"]);
+
 export function isGoogleModelId(id: string): boolean {
   return GOOGLE_MODEL_PATTERN.test(id.trim());
 }
@@ -187,13 +190,18 @@ export function parseRawModels(
     const efforts: string[] = [];
     for (const eff of standardLadder) if (fam.variants.has(eff)) efforts.push(eff);
     for (const eff of fam.variants.keys()) if (!efforts.includes(eff)) efforts.push(eff);
+    // bb validates efforts against a fixed enum and rejects the whole model list on one unknown
+    // value (e.g. "Orchestrator (Neon)" parses to effort "neon"), so advertise only known efforts.
+    const advertised = efforts.filter((eff) => BB_REASONING_EFFORTS.has(eff));
+    if (advertised.length === 0) continue;
+    efforts.splice(0, efforts.length, ...advertised);
 
     const supportedReasoningEfforts: AvailableModelReasoningEffort[] = efforts.map((eff) => ({
       reasoningEffort: eff,
       description: `${prettyEffort(eff)} reasoning effort`,
     }));
 
-    let defaultReasoningEffort = fam.defaultEffort;
+    let defaultReasoningEffort = efforts.includes(fam.defaultEffort) ? fam.defaultEffort : efforts[0]!;
     if (preferredFromSettings && fam.id === preferredFromSettings.model && fam.variants.has(preferredFromSettings.effort)) {
       defaultReasoningEffort = preferredFromSettings.effort;
     }

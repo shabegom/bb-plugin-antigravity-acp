@@ -116,7 +116,20 @@ describe("parseRawModels — dynamic discovery", () => {
     assert.ok(f.variants.has("thinking-high"), "thinking-high effort should be captured");
     const m = models.find((x) => x.id === "gemini-3.9-flash")!;
     assert.ok(m.supportedReasoningEfforts.some((e) => e.reasoningEffort === "ultra"));
-    assert.ok(m.supportedReasoningEfforts.some((e) => e.reasoningEffort === "thinking-high"));
+    // bb only accepts its fixed effort enum, so unknown efforts are captured but not advertised.
+    assert.ok(!m.supportedReasoningEfforts.some((e) => e.reasoningEffort === "thinking-high"));
+  });
+
+  it("drops a family whose only efforts bb would reject", () => {
+    const raw: RawModel[] = [
+      { id: "gemini-3.8-flash-medium", name: "Gemini 3.8 Flash (Medium)" },
+      { id: "gemini-pro-orchestrator-neon", name: "Orchestrator (Neon)" },
+      { id: "gemini-pro-orchestrator", name: "Orchestrator (Carbon)" },
+    ];
+    const { models } = parseRawModels(raw);
+    assert.deepEqual(models.map((m) => m.id), ["gemini-3.8-flash"]);
+    const allowed = new Set(["none", "low", "medium", "high", "xhigh", "ultracode", "max", "ultra"]);
+    for (const m of models) for (const e of m.supportedReasoningEfforts) assert.ok(allowed.has(e.reasoningEffort));
   });
 
   it("handles id-only effort (no parens) generically", () => {
