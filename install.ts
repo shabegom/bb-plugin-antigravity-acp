@@ -241,7 +241,7 @@ export async function fetchDistMap(): Promise<DistMap> {
   }
 }
 
-async function findOnPath(name: string): Promise<string | null> {
+export async function findOnPath(name: string): Promise<string | null> {
   const pathEnv = process.env.PATH ?? "";
   const dirs = pathEnv.split(process.platform === "win32" ? ";" : ":");
   const patterns = process.platform === "win32"
@@ -259,6 +259,39 @@ async function findOnPath(name: string): Promise<string | null> {
     }
   }
   return null;
+}
+
+const AGY_FALLBACK_PATHS = [
+  join(homedir(), ".local", "bin", "agy"),
+  "/usr/local/bin/agy",
+  "/opt/homebrew/bin/agy",
+];
+
+const AGY_ACP_BRIDGE_FALLBACK_PATHS = [
+  join(homedir(), ".local", "bin", "agy-acp"),
+  join(homedir(), ".agents", "acp-bridges", "agy-acp", "index.mjs"),
+];
+
+export async function findAgyBin(): Promise<string | null> {
+  const fromPath = await findOnPath("agy");
+  if (fromPath) return fromPath;
+  for (const candidate of AGY_FALLBACK_PATHS) {
+    if ((await stat(candidate).catch(() => null))?.isFile()) return candidate;
+  }
+  return null;
+}
+
+export async function findAgyAcpBridge(): Promise<string | null> {
+  const fromPath = await findOnPath("agy-acp");
+  if (fromPath) return fromPath;
+  for (const candidate of AGY_ACP_BRIDGE_FALLBACK_PATHS) {
+    if ((await stat(candidate).catch(() => null))?.isFile()) return candidate;
+  }
+  return null;
+}
+
+export function isDarwinIntel(target = detectTarget()): boolean {
+  return target.platform === "darwin" && target.arch === "x86_64";
 }
 
 async function downloadTo(url: string, dest: string): Promise<void> {
@@ -645,7 +678,19 @@ export async function runInstall(options: InstallOptions): Promise<InstallResult
 export async function probeLocal(): Promise<ProbeResult> {
   const target = detectTarget();
   const binaryName = target.binaryName;
-  const binaryPath = await findOnPath(binaryName);
+  let binaryPath = await findOnPath(binaryName);
+
+  // On Intel Macs there is no official ACP server distribution. Fall back to
+  // Sam's agy-acp bridge, which wraps the local `agy` CLI and speaks ACP.
+  let bridgePath: string | null = null;
+  if (!binaryPath && isDarwinIntel(target)) {
+    bridgePath = await findAgyAcpBridge();
+    const agyBin = await findAgyBin();
+    if (bridgePath && agyBin) {
+      binaryPath = bridgePath;
+    }
+  }
+
   let harnessPath: string | null = null;
   const envHarness = process.env.ANTIGRAVITY_HARNESS_PATH?.trim();
   if (envHarness) {
@@ -672,6 +717,20 @@ export async function probeLocal(): Promise<ProbeResult> {
       } catch {
         error = `Antigravity launch target ${binaryPath} is not executable.`;
       }
+
+      // Intel Mac bridge: a shell or node script that proxies to `agy`. No
+      // further inspection needed; the bridge is verified by its own handshake.
+      if (!error && bridgePath && binaryPath === bridgePath) {
+        return {
+          ok: true,
+          platform: target.platform,
+          arch: target.arch,
+          binaryPath,
+          harnessPath,
+          error: null,
+        };
+      }
+
       const file = await open(binaryPath, "r");
       let prefix: Buffer;
       try {
